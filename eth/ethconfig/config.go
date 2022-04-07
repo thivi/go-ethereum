@@ -18,6 +18,7 @@
 package ethconfig
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"os/user"
@@ -30,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/poi"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
@@ -218,6 +220,10 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 	var engine consensus.Engine
 	if chainConfig.Clique != nil {
 		engine = clique.New(chainConfig.Clique, db)
+	} else if chainConfig.PoI != nil {
+		fmt.Print("PoI is configured as the consensus engine")
+
+		return poi.New(chainConfig.PoI, db)
 	} else {
 		switch config.PowMode {
 		case ethash.ModeFake:
