@@ -18,7 +18,6 @@
 package ethconfig
 
 import (
-	"fmt"
 	"math/big"
 	"os"
 	"os/user"
@@ -218,13 +217,16 @@ type Config struct {
 func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	var engine consensus.Engine
+	log.Info(chainConfig.String())
 	if chainConfig.Clique != nil {
+		log.Info("clique clique clique clique clique clique clique clique ")
 		engine = clique.New(chainConfig.Clique, db)
 	} else if chainConfig.PoI != nil {
-		fmt.Print("PoI is configured as the consensus engine")
+		log.Info("PoI is configured as the consensus engine")
 
 		return poi.New(chainConfig.PoI, db)
 	} else {
+		log.Info("Ethash used as the consensus engine")
 		switch config.PowMode {
 		case ethash.ModeFake:
 			log.Warn("Ethash used in fake mode")
