@@ -145,15 +145,26 @@ func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 
 	header := block.Header()
 
-	// header.Nonce, header.MixDigest = getRequiredHeader()
+	go func() {
+		select {
+		case results <- block.WithSeal(header):
+		case <-stop:
+			return
+		default:
+			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
+		}
+	}()
 
-	results <- block.WithSeal(header)
 	return nil
-
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
 func (poi *PoI) SealHash(header *types.Header) (hash common.Hash) {
+	return SealHash(header)
+}
+
+// SealHash returns the hash of a block prior to it being sealed.
+func SealHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 	encodeSigHeader(hasher, header)
 	hasher.(crypto.KeccakState).Read(hash[:])
@@ -174,7 +185,7 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 		header.GasLimit,
 		header.GasUsed,
 		header.Time,
-		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
+		header.Extra,
 		header.MixDigest,
 		header.Nonce,
 	}
