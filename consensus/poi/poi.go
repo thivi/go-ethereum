@@ -11,8 +11,10 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	"math/rand"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -194,7 +196,6 @@ func (poi *PoI) Prepare(chain consensus.ChainHeaderReader, header *types.Header)
 
 	}
 	header.Difficulty = poi.CalcDifficulty(chain, header.Time, parent)
-	header.Extra = poi.signature
 
 	return nil
 }
@@ -235,6 +236,11 @@ func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 	//time.Sleep(15 * time.Second)
 
 	header := block.Header()
+	if poi.signature == nil {
+		panic(errors.New("the miner has no signature"))
+	}
+	header.Extra = poi.signature
+	poi.calculateTime(chain, header)
 
 	go func() {
 		select {
@@ -303,4 +309,34 @@ func (poi *PoI) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 func (poi *PoI) Close() error {
 	log.Info("Closing PoI")
 	return nil
+}
+
+func (poi *PoI) calculateTime(chain consensus.ChainHeaderReader, header *types.Header) {
+	var offset uint64 = 0
+	alpha := 0.8
+
+	for i := poi.config.NumberOfRobots; i > 0; i-- {
+		prevHeader := chain.GetHeaderByNumber(header.Number.Uint64() - uint64(i))
+		if prevHeader == nil {
+			break
+		}
+		if prevHeader.Coinbase == header.Coinbase {
+			offset += (1 / i) * poi.config.NumberOfRobots
+		}
+	}
+
+	randomOffset := rand.Int63n(int64(poi.config.NumberOfRobots))
+
+	offsetTime := uint64((alpha * float64(offset)) + ((1 - alpha) * float64(randomOffset)))
+
+	parent := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
+
+	var blockTime uint64 = 0
+	if parent.Time >= uint64(time.Now().Unix())+offsetTime {
+		blockTime = parent.Time + offsetTime
+	} else {
+		blockTime = uint64(time.Now().Unix()) + offsetTime
+	}
+
+	header.Time = blockTime
 }
