@@ -30,6 +30,7 @@ var Modules = map[string]string{
 	"txpool":   TxpoolJs,
 	"les":      LESJs,
 	"vflux":    VfluxJs,
+	"poi":      PoIJs,
 }
 
 const CliqueJs = `
@@ -115,6 +116,19 @@ web3._extend({
 		}),
 	]
 });
+`
+
+const PoIJs = `
+web3._extend({
+	property: 'poi',
+	methods: [
+		new web3._extend.Method({
+			name: 'getSignature',
+			call: 'poi_getSignature',
+			params: 1
+		})
+	]
+})
 `
 
 const AdminJs = `
