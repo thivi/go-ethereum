@@ -1,14 +1,24 @@
 package poi
 
 import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"io"
+	"io/ioutil"
 	"math/big"
+	"net/http"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
+	gethCrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -19,22 +29,87 @@ import (
 )
 
 type PoI struct {
-	config *params.PoIConfig // Consensus engine configuration parameters
-	db     ethdb.Database    // Database to store and retrieve snapshot checkpoints
+	config    *params.PoIConfig // Consensus engine configuration parameters
+	db        ethdb.Database    // Database to store and retrieve snapshot checkpoints
+	signature []byte            //Signature of the account
+	publicKey *rsa.PublicKey    //public key of the swarm controller
+}
+
+type PublicKeyResponse struct {
+	PublicKey string `json:"publicKey"`
+}
+
+type SignatureResponse struct {
+	Signature string `json:"signature"`
+}
+
+func decodePublicKey(key string) *rsa.PublicKey {
+	r := strings.NewReader(key)
+	pemBytes, err := ioutil.ReadAll(r)
+
+	if err != nil {
+		panic(err)
+	}
+
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		panic(errors.New("failed to decode PEM block containing the key"))
+	}
+
+	if key, err := x509.ParsePKCS1PublicKey(block.Bytes); err == nil {
+		return key
+	}
+
+	panic(err)
+}
+
+func verifySign(signature []byte, coinbase string, publicKey *rsa.PublicKey) bool {
+	msgHash := sha256.New()
+	msgHash.Write([]byte(coinbase))
+	msgHashSum := msgHash.Sum(nil)
+	return rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, msgHashSum, signature) == nil
+}
+
+func getPublicKey() *rsa.PublicKey {
+	resp, err := http.Get("http://localhost:8080/getPublicKey/")
+	if err != nil {
+		panic(err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	var key PublicKeyResponse
+	err = json.Unmarshal(body, &key)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decodePublicKey(key.PublicKey)
+}
+
+func (poi *PoI) SetSignature(signature []byte) {
+	poi.signature = signature
 }
 
 // New creates a PoI proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
 func New(config *params.PoIConfig, db ethdb.Database) *PoI {
 	// Set any missing consensus parameters to their defaults
+	log.Info("New PoI created")
+
 	conf := *config
 	if conf.NumberOfRobots == 0 {
 		conf.NumberOfRobots = 10
 	}
 
 	return &PoI{
-		config: &conf,
-		db:     db,
+		config:    &conf,
+		db:        db,
+		publicKey: getPublicKey(),
 	}
 }
 
@@ -46,14 +121,14 @@ func (poi *PoI) Author(header *types.Header) (common.Address, error) {
 
 func (poi *PoI) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 
-	log.Info("will verifyHeader")
+	log.Info("Verifying Header")
 
 	return nil
 
 }
 func (poi *PoI) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 
-	log.Info("will verifyHeaders")
+	log.Info("Verifying Headers")
 
 	abort := make(chan struct{})
 
@@ -83,21 +158,33 @@ func (poi *PoI) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*type
 }
 func (poi *PoI) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 
-	log.Info("will verfiy uncles")
+	log.Info("Verifying Uncles")
 
 	return nil
 
 }
 func (poi *PoI) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
 
-	log.Info("will verfiy VerifySeal")
+	log.Info("Verifying Seals")
+	if !poi.VerifySignature(header) {
+		return errors.New("signature verification failed")
+	}
 
 	return nil
 
 }
+func (poi *PoI) VerifySignature(header *types.Header) bool {
+	if verifySign(poi.signature, strings.ToLower((header.Coinbase.String())), poi.publicKey) {
+		log.Info("Signature Verified!")
+		return true
+	}
+
+	log.Error("Signature Verification Failed")
+	return false
+}
 func (poi *PoI) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 
-	log.Info("will prepare the block")
+	log.Info("Preparing the block")
 
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 
@@ -107,10 +194,11 @@ func (poi *PoI) Prepare(chain consensus.ChainHeaderReader, header *types.Header)
 
 	}
 	header.Difficulty = poi.CalcDifficulty(chain, header.Time, parent)
+	header.Extra = poi.signature
 
 	return nil
-
 }
+
 func (poi *PoI) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 
 	return parent.Difficulty
@@ -121,7 +209,7 @@ func (poi *PoI) Finalize(chain consensus.ChainHeaderReader, header *types.Header
 
 	uncles []*types.Header) {
 
-	log.Info("will Finalize the block")
+	log.Info("Finalizing the block")
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 
@@ -139,8 +227,11 @@ func (poi *PoI) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 
 func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 
-	log.Info("will Seal the block")
+	log.Info("Sealing the block")
 
+	/* if len(block.Transactions()) == 0 {
+		return errors.New("sealing paused while waiting for transactions")
+	} */
 	//time.Sleep(15 * time.Second)
 
 	header := block.Header()
@@ -160,6 +251,7 @@ func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 
 // SealHash returns the hash of a block prior to it being sealed.
 func (poi *PoI) SealHash(header *types.Header) (hash common.Hash) {
+	log.Info("Sealing Hash")
 	return SealHash(header)
 }
 
@@ -167,7 +259,7 @@ func (poi *PoI) SealHash(header *types.Header) (hash common.Hash) {
 func SealHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 	encodeSigHeader(hasher, header)
-	hasher.(crypto.KeccakState).Read(hash[:])
+	hasher.(gethCrypto.KeccakState).Read(hash[:])
 	return hash
 }
 
@@ -200,7 +292,7 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 // APIs implements consensus.Engine, returning the user facing RPC APIs.
 func (poi *PoI) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return []rpc.API{{
-		Namespace: "proof-of-identity",
+		Namespace: "poi",
 		Version:   "1.0",
 		Service:   &API{poi},
 		Public:    false,
@@ -209,5 +301,6 @@ func (poi *PoI) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 
 // Close implements consensus.Engine. It's a noop for clique as there are no background threads.
 func (poi *PoI) Close() error {
+	log.Info("Closing PoI")
 	return nil
 }
