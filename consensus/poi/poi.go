@@ -125,6 +125,10 @@ func (poi *PoI) VerifyHeader(chain consensus.ChainHeaderReader, header *types.He
 
 	log.Info("Verifying Header")
 
+	if !poi.VerifySignature(header) {
+		return errors.New("signature verification failed")
+	}
+
 	return nil
 
 }
@@ -162,18 +166,11 @@ func (poi *PoI) VerifyUncles(chain consensus.ChainReader, block *types.Block) er
 
 	log.Info("Verifying Uncles")
 
-	return nil
-
-}
-func (poi *PoI) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
-
-	log.Info("Verifying Seals")
-	if !poi.VerifySignature(header) {
-		return errors.New("signature verification failed")
+	if len(block.Uncles()) > 0 {
+		return errors.New("uncles not allowed")
 	}
 
 	return nil
-
 }
 func (poi *PoI) VerifySignature(header *types.Header) bool {
 	if verifySign(poi.signature, strings.ToLower((header.Coinbase.String())), poi.publicKey) {
@@ -213,6 +210,7 @@ func (poi *PoI) Finalize(chain consensus.ChainHeaderReader, header *types.Header
 	log.Info("Finalizing the block")
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	header.UncleHash = types.CalcUncleHash(nil)
 
 }
 
