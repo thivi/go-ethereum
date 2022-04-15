@@ -374,7 +374,8 @@ type CliqueConfig struct {
 }
 
 type PoIConfig struct {
-	NumberOfRobots uint64 `json:"numberOfRobots"` // Number of robots expected to be in a swarm
+	NumberOfRobots     uint64 `json:"numberOfRobots"`     // Number of robots expected to be in a swarm
+	SwarmControllerURI string `json:"swarmControllerURI"` // URI of the swarm controller
 }
 
 // String implements the stringer interface, returning the consensus engine details.

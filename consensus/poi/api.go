@@ -12,7 +12,7 @@ type API struct {
 }
 
 func (api *API) GetSignature(coinbase string) {
-	resp, err := http.Get("http://localhost:8080/getSignature/" + coinbase)
+	resp, err := http.Get(api.poi.config.SwarmControllerURI + "/getSignature/" + coinbase)
 	if err != nil {
 		panic(err)
 	}
