@@ -66,14 +66,15 @@ func decodePublicKey(key string) *rsa.PublicKey {
 }
 
 func verifySign(signature []byte, coinbase string, publicKey *rsa.PublicKey) bool {
+	log.Info(coinbase)
 	msgHash := sha256.New()
 	msgHash.Write([]byte(coinbase))
 	msgHashSum := msgHash.Sum(nil)
 	return rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, msgHashSum, signature) == nil
 }
 
-func getPublicKey() *rsa.PublicKey {
-	resp, err := http.Get("http://localhost:8080/getPublicKey/")
+func getPublicKey(uri string) *rsa.PublicKey {
+	resp, err := http.Get(uri + "/getPublicKey/")
 	if err != nil {
 		panic(err)
 	}
@@ -111,7 +112,7 @@ func New(config *params.PoIConfig, db ethdb.Database) *PoI {
 	return &PoI{
 		config:    &conf,
 		db:        db,
-		publicKey: getPublicKey(),
+		publicKey: getPublicKey(config.SwarmControllerURI),
 	}
 }
 
@@ -129,8 +130,9 @@ func (poi *PoI) VerifyHeader(chain consensus.ChainHeaderReader, header *types.He
 		return errors.New("signature verification failed")
 	}
 
-	return nil
+	log.Info("Signature Verified!")
 
+	return nil
 }
 func (poi *PoI) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 
@@ -173,7 +175,7 @@ func (poi *PoI) VerifyUncles(chain consensus.ChainReader, block *types.Block) er
 	return nil
 }
 func (poi *PoI) VerifySignature(header *types.Header) bool {
-	if verifySign(poi.signature, strings.ToLower((header.Coinbase.String())), poi.publicKey) {
+	if verifySign(header.Extra, strings.ToLower((header.Coinbase.String())), poi.publicKey) {
 		log.Info("Signature Verified!")
 		return true
 	}
@@ -193,6 +195,11 @@ func (poi *PoI) Prepare(chain consensus.ChainHeaderReader, header *types.Header)
 
 	}
 	header.Difficulty = poi.CalcDifficulty(chain, header.Time, parent)
+	if poi.signature == nil {
+		log.Error("the miner has no signature")
+	}
+	header.Extra = poi.signature
+	poi.calculateTime(chain, header)
 
 	return nil
 }
@@ -234,11 +241,6 @@ func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 	//time.Sleep(15 * time.Second)
 
 	header := block.Header()
-	if poi.signature == nil {
-		panic(errors.New("the miner has no signature"))
-	}
-	header.Extra = poi.signature
-	poi.calculateTime(chain, header)
 
 	go func() {
 		select {
