@@ -305,7 +305,6 @@ func (poi *PoI) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	}}
 }
 
-// Close implements consensus.Engine. It's a noop for clique as there are no background threads.
 func (poi *PoI) Close() error {
 	log.Info("Closing PoI")
 	return nil
