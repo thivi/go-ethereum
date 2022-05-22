@@ -102,7 +102,7 @@ func (poi *PoI) SetSignature(signature []byte) {
 // signers set to the ones provided by the user.
 func New(config *params.PoIConfig, db ethdb.Database) *PoI {
 	// Set any missing consensus parameters to their defaults
-	log.Info("New PoI created")
+	//log.Info("New PoI created")
 
 	conf := *config
 	if conf.NumberOfRobots == 0 {
@@ -124,7 +124,7 @@ func (poi *PoI) Author(header *types.Header) (common.Address, error) {
 
 func (poi *PoI) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 
-	log.Info("Verifying Header")
+	//log.Info("Verifying Header")
 
 	if !poi.VerifySignature(header) {
 		return errors.New("signature verification failed")
@@ -136,7 +136,7 @@ func (poi *PoI) VerifyHeader(chain consensus.ChainHeaderReader, header *types.He
 }
 func (poi *PoI) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 
-	log.Info("Verifying Headers")
+	//log.Info("Verifying Headers")
 
 	abort := make(chan struct{})
 
@@ -166,7 +166,7 @@ func (poi *PoI) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*type
 }
 func (poi *PoI) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 
-	log.Info("Verifying Uncles")
+	//log.Info("Verifying Uncles")
 
 	if len(block.Uncles()) > 0 {
 		return errors.New("uncles not allowed")
@@ -185,7 +185,7 @@ func (poi *PoI) VerifySignature(header *types.Header) bool {
 }
 func (poi *PoI) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 
-	log.Info("Preparing the block")
+	//log.Info("Preparing the block")
 
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 
@@ -214,7 +214,7 @@ func (poi *PoI) Finalize(chain consensus.ChainHeaderReader, header *types.Header
 
 	uncles []*types.Header) {
 
-	log.Info("Finalizing the block")
+	//log.Info("Finalizing the block")
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -233,11 +233,11 @@ func (poi *PoI) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 
 func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 
-	log.Info("Sealing the block")
+	//log.Info("Sealing the block")
 
-	/* if len(block.Transactions()) == 0 {
+	if len(block.Transactions()) == 0 {
 		return errors.New("sealing paused while waiting for transactions")
-	} */
+	}
 	//time.Sleep(15 * time.Second)
 
 	header := block.Header()
@@ -257,7 +257,7 @@ func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 
 // SealHash returns the hash of a block prior to it being sealed.
 func (poi *PoI) SealHash(header *types.Header) (hash common.Hash) {
-	log.Info("Sealing Hash")
+	//log.Info("Sealing Hash")
 	return SealHash(header)
 }
 
