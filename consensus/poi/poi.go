@@ -235,9 +235,9 @@ func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 
 	//log.Info("Sealing the block")
 
-	if len(block.Transactions()) == 0 {
+	/* if len(block.Transactions()) == 0 {
 		return errors.New("sealing paused while waiting for transactions")
-	}
+	} */
 	//time.Sleep(15 * time.Second)
 
 	header := block.Header()
