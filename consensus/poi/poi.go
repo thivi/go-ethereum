@@ -216,6 +216,7 @@ func (poi *PoI) Finalize(chain consensus.ChainHeaderReader, header *types.Header
 
 	//log.Info("Finalizing the block")
 
+	state.AddBalance(header.Coinbase, big.NewInt(100))
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
@@ -235,9 +236,9 @@ func (poi *PoI) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 
 	//log.Info("Sealing the block")
 
-	/* if len(block.Transactions()) == 0 {
+	if len(block.Transactions()) == 0 {
 		return errors.New("sealing paused while waiting for transactions")
-	} */
+	}
 	//time.Sleep(15 * time.Second)
 
 	header := block.Header()
